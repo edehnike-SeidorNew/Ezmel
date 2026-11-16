@@ -1,15 +1,17 @@
 "use client";
 
 import { useState } from "react";
-import { FileTextIcon, HistoryIcon } from "@/components/layout/icons";
+import { BanIcon, FileTextIcon, HistoryIcon } from "@/components/layout/icons";
 import { PanelOpciones } from "@/components/layout/PanelOpciones";
 import { ContratoWizard } from "./ContratoWizard";
+import { AnulacionWizard } from "@/components/anulacion/AnulacionWizard";
 import { RefinanciacionWizard } from "@/components/refinanciacion/RefinanciacionWizard";
 
 // Para sumar otro tipo de contrato: una entrada acá y su bloque en el contenido.
 const TIPOS = [
   { id: "mutuo", label: "Contrato de mutuo y pagaré", titulo: "Crear contrato", Icon: FileTextIcon },
   { id: "refinanciacion", label: "Refinanciación", titulo: "Crear refinanciación", Icon: HistoryIcon },
+  { id: "anulacion", label: "Anulación", titulo: "Crear anulación", Icon: BanIcon },
 ] as const;
 
 type TipoId = (typeof TIPOS)[number]["id"];
@@ -21,16 +23,26 @@ export function ContratosPanel() {
 
   return (
     <div className="flex flex-col gap-6 xl:flex-row xl:items-start">
-      <PanelOpciones titulo="Tipo de contrato" opciones={TIPOS} seleccion={tipo} onSelect={setTipo} />
+      {/* Se baja la columna para que arranque a la altura del primer bloque (después del título y los pasos). */}
+      <PanelOpciones
+        titulo="Tipo de contrato"
+        opciones={TIPOS}
+        seleccion={tipo}
+        onSelect={setTipo}
+        desplazamiento="xl:mt-[6.75rem]"
+      />
 
       <div className="min-w-0 flex-1">
         <h1 className="mb-6 text-2xl font-bold text-brand">{actual.titulo}</h1>
-        {/* Ambos quedan montados para no perder lo cargado al cambiar de tipo. */}
+        {/* Todos quedan montados para no perder lo cargado al cambiar de tipo. */}
         <div hidden={tipo !== "mutuo"}>
           <ContratoWizard />
         </div>
         <div hidden={tipo !== "refinanciacion"}>
           <RefinanciacionWizard />
+        </div>
+        <div hidden={tipo !== "anulacion"}>
+          <AnulacionWizard />
         </div>
       </div>
     </div>

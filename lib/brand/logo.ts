@@ -4,7 +4,6 @@ export const LOGO_PNG = Buffer.from(
   "base64"
 );
 
-export const LOGO_ASPECT = 600 / 131;
 
 /** Logo con el subtítulo "Servicios financieros" debajo (para el encabezado de los documentos). */
 export const LOGO_TAGLINE_PNG = Buffer.from(
@@ -12,4 +11,5 @@ export const LOGO_TAGLINE_PNG = Buffer.from(
   "base64"
 );
 
-export const LOGO_TAGLINE_ASPECT = 600 / 218;
+
+export { LOGO_ASPECT, LOGO_TAGLINE_ASPECT } from "./aspect";

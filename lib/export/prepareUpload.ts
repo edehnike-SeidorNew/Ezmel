@@ -15,7 +15,7 @@ const JPEG_QUALITY = 0.8;
  * celular pueden pesar varios MB aun siendo JPEG; sin esto, dos o tres fotos
  * ya alcanzan el límite de la función.
  */
-async function toEmbeddableImage(file: File): Promise<{ blob: Blob; width: number; height: number }> {
+export async function toEmbeddableImage(file: File): Promise<{ blob: Blob; width: number; height: number }> {
   const url = URL.createObjectURL(file);
   try {
     const img = await new Promise<HTMLImageElement>((resolve, reject) => {

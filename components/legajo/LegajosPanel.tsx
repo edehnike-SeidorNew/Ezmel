@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { FolderIcon, UploadIcon } from "@/components/layout/icons";
 import { PanelOpciones } from "@/components/layout/PanelOpciones";
+import { CargarLegajo } from "./CargarLegajo";
 import { LegajoWizard } from "./LegajoWizard";
 
 const OPCIONES = [
@@ -19,7 +20,14 @@ export function LegajosPanel() {
 
   return (
     <div className="flex flex-col gap-6 xl:flex-row xl:items-start">
-      <PanelOpciones titulo="Legajos" opciones={OPCIONES} seleccion={opcion} onSelect={setOpcion} />
+      {/* Se baja la columna para que arranque a la altura del primer bloque (después del título y, en "crear", de los pasos). */}
+      <PanelOpciones
+        titulo="Legajos"
+        opciones={OPCIONES}
+        seleccion={opcion}
+        onSelect={setOpcion}
+        desplazamiento={opcion === "crear" ? "xl:mt-[6.75rem]" : "xl:mt-14"}
+      />
 
       <div className="min-w-0 flex-1">
         <h1 className="mb-6 text-2xl font-bold text-brand">{actual.titulo}</h1>
@@ -27,11 +35,7 @@ export function LegajosPanel() {
         <div hidden={opcion !== "crear"}>
           <LegajoWizard />
         </div>
-        {opcion === "cargar" && (
-          <div className="rounded-2xl border border-dashed border-brand-border bg-white p-10 text-center text-sm text-slate-500">
-            Esta sección está en definición.
-          </div>
-        )}
+        {opcion === "cargar" && <CargarLegajo />}
       </div>
     </div>
   );

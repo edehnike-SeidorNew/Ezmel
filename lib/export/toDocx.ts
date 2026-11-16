@@ -253,7 +253,9 @@ export async function generateDocx(input: ExportInput): Promise<Buffer> {
       ["Email", data.email],
       ["Dirección", data.direccion],
       ["Código postal", data.codigoPostal],
-      ["Referencias", data.referencias],
+      ["Referencia 1", data.referencia1],
+      ["Referencia 2", data.referencia2],
+      ...(data.referenciaLaboral ? [["Referencia laboral", data.referenciaLaboral] as [string, string]] : []),
     ]),
 
     spacer(),

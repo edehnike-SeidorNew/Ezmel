@@ -13,6 +13,8 @@ export interface AppSession {
   /** null = la cuenta existe pero todavía no pertenece a ningún tenant activo (falta invitación). */
   tenant: { id: string; name: string } | null;
   role: Role | null;
+  /** Usuario principal del tenant: el único que gestiona usuarios y permisos. */
+  superAdmin: boolean;
 }
 
 /** Sesión con acceso: pertenece a un tenant activo y tiene un rol. */
@@ -41,6 +43,7 @@ export const getServerSession = cache(async (): Promise<AppSession | null> => {
       mock: true,
       tenant: { id: "mock-tenant", name: "Demo" },
       role: session.role ?? "admin",
+      superAdmin: (session.role ?? "admin") === "admin",
     };
   }
 
@@ -53,7 +56,7 @@ export const getServerSession = cache(async (): Promise<AppSession | null> => {
   // RLS: cada usuario sólo puede leer su propio perfil; el tenant sólo se ve si está activo.
   const { data: profile, error } = await supabase
     .from("profiles")
-    .select("full_name, role, active, tenant_id, tenants(id, name, active)")
+    .select("full_name, role, active, tenant_id, tenants(id, name, active, owner_id)")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -71,5 +74,6 @@ export const getServerSession = cache(async (): Promise<AppSession | null> => {
     mock: false,
     tenant: active && tenantRow ? { id: tenantRow.id, name: tenantRow.name } : null,
     role: active && isRole(profile?.role) ? profile.role : null,
+    superAdmin: active && !!tenantRow?.owner_id && tenantRow.owner_id === user.id,
   };
 });

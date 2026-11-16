@@ -38,7 +38,7 @@ export function LegajoDocumentPreview({
   );
 
   return (
-    <div className="mx-auto max-w-3xl border border-[#c3dadb] bg-white p-10 shadow-sm">
+    <div className="mx-auto max-w-3xl border border-[#c3dadb] bg-white p-4 shadow-sm sm:p-10">
       <div className="bg-[#1a5f6f] px-4 py-2 text-center text-sm font-bold uppercase tracking-[0.2em] text-white">
         Legajo de Cliente
       </div>
@@ -68,7 +68,9 @@ export function LegajoDocumentPreview({
           <Row label="Email" value={data.email} />
           <Row label="Dirección" value={data.direccion} />
           <Row label="Código postal" value={data.codigoPostal} />
-          <Row label="Referencias" value={data.referencias} />
+          <Row label="Referencia 1" value={data.referencia1} />
+          <Row label="Referencia 2" value={data.referencia2} />
+          {data.referenciaLaboral && <Row label="Referencia laboral" value={data.referenciaLaboral} />}
         </tbody>
       </table>
 

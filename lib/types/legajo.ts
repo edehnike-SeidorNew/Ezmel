@@ -55,7 +55,12 @@ export interface LegajoDatos {
   email: string;
   direccion: string;
   codigoPostal: string;
-  referencias: string;
+  /** Referencia personal 1: nombre, teléfono y DNI. */
+  referencia1: string;
+  /** Referencia personal 2: nombre, teléfono y DNI. */
+  referencia2: string;
+  /** Sólo monotributistas: además de las dos personales, tienen una referencia laboral. */
+  referenciaLaboral: string;
 
   // Monto de Préstamo
   montoPrestamo: number;

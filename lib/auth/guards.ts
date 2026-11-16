@@ -22,7 +22,7 @@ export async function authorize(
   if (!hasAccess(session)) {
     return { ok: false, response: NextResponse.json({ error: "Tu cuenta todavía no tiene acceso." }, { status: 403 }) };
   }
-  if (!can(session.role, permission)) {
+  if (!can(session.role, permission, session.superAdmin)) {
     return { ok: false, response: NextResponse.json({ error: "Tu rol no permite esta acción." }, { status: 403 }) };
   }
   return { ok: true, session };
@@ -36,6 +36,6 @@ export async function requirePageAccess(permission: Permission = "documentos:lee
   const session = await getServerSession();
   if (!session) redirect("/login");
   if (!hasAccess(session)) redirect("/sin-acceso");
-  if (!can(session.role, permission)) redirect("/");
+  if (!can(session.role, permission, session.superAdmin)) redirect("/");
   return session;
 }

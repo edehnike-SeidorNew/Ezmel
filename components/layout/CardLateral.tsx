@@ -10,14 +10,17 @@ import { ChevronRightIcon } from "./icons";
 export function ColumnaLateral({
   ancho = "xl:w-80",
   fija = true,
+  desplazamiento = "",
   children,
 }: {
   ancho?: string;
   fija?: boolean;
+  /** Margen superior (clase `xl:mt-...`) para alinear la columna con el primer bloque del contenido, sólo en pantallas anchas. */
+  desplazamiento?: string;
   children: ReactNode;
 }) {
   return (
-    <aside className={`space-y-4 xl:order-last xl:shrink-0 ${fija ? "xl:sticky xl:top-0" : ""} ${ancho}`}>
+    <aside className={`space-y-4 xl:order-last xl:shrink-0 ${fija ? "xl:sticky xl:top-0" : ""} ${ancho} ${desplazamiento}`}>
       {children}
     </aside>
   );
@@ -33,7 +36,7 @@ export function CardLateral({ titulo, children }: { titulo: string; children: Re
         type="button"
         onClick={() => setAbierto((a) => !a)}
         aria-expanded={abierto}
-        className="flex w-full items-center gap-2 text-left text-sm font-semibold text-brand"
+        className="flex min-h-10 w-full items-center gap-2 text-left text-sm font-semibold text-brand"
       >
         {titulo}
         <ChevronRightIcon className={`h-4 w-4 transition-transform ${abierto ? "rotate-90" : ""}`} />

@@ -59,7 +59,9 @@ export async function generateXlsx(input: ExportInput): Promise<Buffer> {
   labelValueRow(sheet, "Email", data.email);
   labelValueRow(sheet, "Dirección", data.direccion);
   labelValueRow(sheet, "Código postal", data.codigoPostal);
-  labelValueRow(sheet, "Referencias", data.referencias);
+  labelValueRow(sheet, "Referencia 1", data.referencia1);
+  labelValueRow(sheet, "Referencia 2", data.referencia2);
+  if (data.referenciaLaboral) labelValueRow(sheet, "Referencia laboral", data.referenciaLaboral);
 
   sectionRow(sheet, "Monto de préstamo");
   labelValueRow(sheet, "Monto de Préstamo", Number(data.montoPrestamo || 0));

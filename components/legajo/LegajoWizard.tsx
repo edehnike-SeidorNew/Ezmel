@@ -22,7 +22,9 @@ const defaultValues: LegajoFormValues = {
   email: "",
   direccion: "",
   codigoPostal: "",
-  referencias: "",
+  referencia1: "",
+  referencia2: "",
+  referenciaLaboral: "",
   montoPrestamo: 0,
   servicios: SERVICIOS_DEFAULT.map((servicio) => ({
     servicio,
@@ -50,13 +52,30 @@ const defaultValues: LegajoFormValues = {
 
 const STEPS = ["Datos de la persona", "Documentación", "Revisión y descarga"];
 
-export function LegajoWizard() {
+/** Datos y documentos con los que arranca el formulario (por ejemplo, los leídos de un PDF de legajo). */
+export interface LegajoInicial {
+  values?: Partial<LegajoFormValues>;
+  files?: Partial<Record<LegajoFileCategoryKey, File[]>>;
+}
+
+function valoresIniciales(inicial?: LegajoInicial): LegajoFormValues {
+  const v = inicial?.values;
+  if (!v) return defaultValues;
+  return {
+    ...defaultValues,
+    ...v,
+    servicios: v.servicios ?? defaultValues.servicios,
+    checklist: { ...defaultValues.checklist, ...v.checklist },
+  };
+}
+
+export function LegajoWizard({ inicial }: { inicial?: LegajoInicial } = {}) {
   const [step, setStep] = useState(0);
-  const [files, setFiles] = useState<Partial<Record<LegajoFileCategoryKey, File[]>>>({});
+  const [files, setFiles] = useState<Partial<Record<LegajoFileCategoryKey, File[]>>>(inicial?.files ?? {});
 
   const methods = useForm<LegajoFormValues>({
     resolver: zodResolver(legajoFormSchema) as Resolver<LegajoFormValues>,
-    defaultValues,
+    defaultValues: valoresIniciales(inicial),
     mode: "onBlur",
   });
 

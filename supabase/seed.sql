@@ -9,6 +9,8 @@
 --                  email con el que esa persona entra (el de su cuenta de Google o
 --                  el que use para registrarse con email y contraseña).
 --
+-- IMPORTANTE: el email tiene que ser de un dominio autorizado (por defecto @ezmel.net; ver la tabla
+-- allowed_email_domains) y esa persona queda como SUPERADMINISTRADOR del tenant (usuario principal).
 -- Esa persona queda como administrador apenas inicie sesión con ese email
 -- (confirmado). Si ya tenía cuenta, queda asociada en el momento.
 -- =============================================================================

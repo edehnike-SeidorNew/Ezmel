@@ -140,3 +140,40 @@ export const UserPlusIcon = ({ className }: IconProps) => (
     <path d="M2 20a7 7 0 0 1 14 0M19 8v6M16 11h6" />
   </Svg>
 );
+
+export const MessageIcon = ({ className }: IconProps) => (
+  <Svg className={className}>
+    <path d="M4 5h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H9l-4 3v-3H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z" />
+    <path d="M7.5 9.5h9M7.5 12.5h5" />
+  </Svg>
+);
+
+export const BanIcon = ({ className }: IconProps) => (
+  <Svg className={className}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="m5.6 5.6 12.8 12.8" />
+  </Svg>
+);
+
+export const PercentIcon = ({ className }: IconProps) => (
+  <Svg className={className}>
+    <path d="M19 5 5 19" />
+    <circle cx="7.5" cy="7.5" r="2.5" />
+    <circle cx="16.5" cy="16.5" r="2.5" />
+  </Svg>
+);
+
+export const ZoomInIcon = ({ className }: IconProps) => (
+  <Svg className={className}>
+    <circle cx="11" cy="11" r="6.5" />
+    <path d="m20 20-4.2-4.2M11 8.5v5M8.5 11h5" />
+  </Svg>
+);
+
+export const BankIcon = ({ className }: IconProps) => (
+  <Svg className={className}>
+    <path d="m3 9 9-5 9 5" />
+    <path d="M5 9v9M9.5 9v9M14.5 9v9M19 9v9" />
+    <path d="M3 21h18M4 18h16" />
+  </Svg>
+);

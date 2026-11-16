@@ -7,6 +7,7 @@ import { LoginForm } from "@/components/auth/LoginForm";
 const ERROR_MESSAGES: Record<string, string> = {
   auth: "No se pudo completar el inicio de sesión. Probá de nuevo.",
   oauth: "No se pudo iniciar sesión con Google. Probá de nuevo.",
+  recuperar: "El enlace para cambiar la contraseña venció o ya se usó. Pedí uno nuevo con \"¿Olvidaste tu contraseña?\".",
 };
 
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {

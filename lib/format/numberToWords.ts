@@ -118,3 +118,11 @@ function capitalize(s: string): string {
 export function numeroALetrasCapitalizado(valor: number): string {
   return capitalize(numeroALetras(valor));
 }
+
+/** "PESOS DOSCIENTOS MIL CON 00/100": los centavos van como fracción de 100. */
+export function montoEnLetrasPesos(valor: number): string {
+  const totalCentavos = Math.round(Math.abs(valor) * 100);
+  const pesos = Math.floor(totalCentavos / 100);
+  const centavos = totalCentavos % 100;
+  return `PESOS ${numeroALetras(pesos).toUpperCase()} CON ${String(centavos).padStart(2, "0")}/100`;
+}

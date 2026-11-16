@@ -12,9 +12,17 @@
 --   legajos, legajo_files, contratos   datos del negocio, siempre con tenant_id
 --
 -- Roles (enum app_role):
---   admin      todo, incluida la gestión de usuarios del tenant
+--   admin      trabaja con legajos/contratos y puede borrar; NO gestiona usuarios
 --   operador   crea y consulta legajos/contratos
 --   lectura    sólo consulta
+--
+-- Superadministrador = usuario principal del tenant (tenants.owner_id, el primer admin invitado con
+-- create_tenant): único que ve a los demás usuarios, invita, cambia roles y activa/desactiva cuentas.
+--
+-- Dominios de email: sólo se crean cuentas con un dominio de allowed_email_domains (por defecto
+-- ezmel.net) o un email puntual de allowed_email_addresses (por defecto, el del desarrollador).
+-- Para sumar otro dominio:  insert into public.allowed_email_domains (domain) values ('otro.com');
+-- Para sumar un email suelto: insert into public.allowed_email_addresses (email) values ('persona@otro.com');
 -- =============================================================================
 
 -- ---------------------------------------------------------------------------
@@ -53,6 +61,30 @@ create table if not exists public.profiles (
   constraint profiles_tenant_role_juntos check ((tenant_id is null) = (role is null))
 );
 create index if not exists profiles_tenant_idx on public.profiles (tenant_id);
+
+-- Usuario principal de cada tenant: el primer administrador (el que se invita con create_tenant).
+-- No se puede desactivar ni cambiarle el rol desde la app.
+alter table public.tenants add column if not exists owner_id uuid references auth.users (id) on delete set null;
+
+-- Dominios de email autorizados para tener cuenta (ej.: ezmel.net). Sólo se administra desde el
+-- SQL Editor: con RLS activo y sin policies, la API no puede leerla ni modificarla.
+create table if not exists public.allowed_email_domains (
+  domain text primary key check (domain = lower(trim(domain)) and domain !~ '[@[:space:]]' and position('.' in domain) > 1),
+  created_at timestamptz not null default now()
+);
+alter table public.allowed_email_domains enable row level security;
+revoke all on public.allowed_email_domains from anon, authenticated;
+insert into public.allowed_email_domains (domain) values ('ezmel.net') on conflict do nothing;
+
+-- Emails puntuales permitidos aunque su dominio no esté autorizado (ej.: el desarrollador). Se compara el email
+-- completo: autorizar uno no habilita al resto del dominio. Igual que la tabla de dominios, sólo desde el SQL Editor.
+create table if not exists public.allowed_email_addresses (
+  email text primary key check (email = lower(trim(email)) and email ~ '^[^@[:space:]]+@[^@[:space:]]+$'),
+  created_at timestamptz not null default now()
+);
+alter table public.allowed_email_addresses enable row level security;
+revoke all on public.allowed_email_addresses from anon, authenticated;
+insert into public.allowed_email_addresses (email) values ('ezequieldehnike@gmail.com') on conflict do nothing;
 
 create table if not exists public.invitations (
   id uuid primary key default gen_random_uuid(),
@@ -103,6 +135,32 @@ create table if not exists public.contratos (
 );
 create index if not exists contratos_tenant_idx on public.contratos (tenant_id, created_at desc);
 
+-- Tasas del cotizador, una fila por tenant y tipo de cliente (nuevo / antiguo). Son los parámetros de la hoja
+-- "Parámetros de tasas" de los Excel de EzMel. Los porcentajes van como fracción (0,40 = 40 %).
+--   interes_1_semana          interés total de un préstamo a 1 cuota semanal
+--   interes_adicional_semana  lo que suma cada semana más (parejo de la semana 1 a la última)
+--   max_semanas               largo de la tabla: 16 semanas para clientes nuevos, 20 para antiguos
+--   redondeo_cuota            la cuota se redondea hacia arriba a este múltiplo (1 = al peso)
+--   gastos_otorgamiento       fracción del monto que se descuenta al entregarlo (para el CFT)
+--   iva                       IVA sobre intereses (va incluido en la cuota)
+--   tabla_manual              intereses escritos a mano para una semana puntual: {"3": 0.52}
+-- Por ahora sólo se muestran en la pantalla Tasas (los cotizadores usan valores fijos del código) y se cambian
+-- desde el SQL Editor.
+create table if not exists public.tasas (
+  tenant_id uuid not null references public.tenants (id) on delete cascade,
+  tipo_cliente text not null check (tipo_cliente in ('nuevo', 'antiguo')),
+  interes_1_semana numeric not null check (interes_1_semana >= 0 and interes_1_semana <= 10),
+  interes_adicional_semana numeric not null check (interes_adicional_semana >= 0 and interes_adicional_semana <= 10),
+  max_semanas integer not null default 16 check (max_semanas between 1 and 52),
+  redondeo_cuota numeric not null default 1 check (redondeo_cuota > 0 and redondeo_cuota <= 100000),
+  gastos_otorgamiento numeric not null default 0 check (gastos_otorgamiento >= 0 and gastos_otorgamiento < 1),
+  iva numeric not null default 0.21 check (iva >= 0 and iva < 1),
+  tabla_manual jsonb not null default '{}'::jsonb check (jsonb_typeof(tabla_manual) = 'object'),
+  updated_at timestamptz not null default now(),
+  updated_by uuid references auth.users (id) on delete set null,
+  primary key (tenant_id, tipo_cliente)
+);
+
 -- ---------------------------------------------------------------------------
 -- Funciones auxiliares (SECURITY DEFINER para poder usarlas dentro de las policies
 -- sin que las policies de profiles/tenants se llamen a sí mismas).
@@ -133,6 +191,74 @@ as $$
   join public.tenants t on t.id = p.tenant_id
   where p.id = auth.uid() and p.active and t.active
 $$;
+
+-- Superadministrador = usuario principal del tenant (tenants.owner_id). Es el único que ve a los
+-- demás usuarios, invita y cambia roles o estados. Los administradores comunes trabajan con
+-- legajos, contratos y demás (incluso borrar) pero no gestionan usuarios.
+create or replace function public.is_tenant_owner()
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1
+    from public.tenants t
+    join public.profiles p on p.tenant_id = t.id
+    where p.id = auth.uid() and p.active and t.active and t.owner_id = auth.uid()
+  )
+$$;
+
+-- ---------------------------------------------------------------------------
+-- Dominio de email: sólo se pueden crear cuentas (y cambiar de email) con un dominio de
+-- allowed_email_domains o un email puntual de allowed_email_addresses. Se aplica en la base, así que no se
+-- puede esquivar llamando a la API
+-- de Supabase directamente con la clave pública. Si la tabla queda vacía, no se registra nadie.
+-- ---------------------------------------------------------------------------
+create or replace function public.is_email_allowed(p_email text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(
+    lower(trim(p_email)) ~ '^[^@[:space:]]+@[^@[:space:]]+$'
+    and (
+      exists (
+        select 1 from public.allowed_email_domains d
+        where d.domain = split_part(lower(trim(p_email)), '@', 2)
+      )
+      or exists (
+        select 1 from public.allowed_email_addresses a
+        where a.email = lower(trim(p_email))
+      )
+    ),
+    false
+  )
+$$;
+
+create or replace function public.enforce_email_domain()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if tg_op = 'INSERT' or new.email is distinct from old.email then
+    if new.email is null or not public.is_email_allowed(new.email) then
+      raise exception 'Solo se pueden registrar cuentas con el email de la empresa' using errcode = '22023';
+    end if;
+  end if;
+  return new;
+end
+$$;
+
+drop trigger if exists enforce_email_domain on auth.users;
+create trigger enforce_email_domain
+  before insert or update of email on auth.users
+  for each row execute function public.enforce_email_domain();
 
 -- ---------------------------------------------------------------------------
 -- Alta de usuarios: al crearse (o confirmar su email) un usuario en auth.users se
@@ -173,6 +299,11 @@ begin
   update public.invitations
      set accepted_at = now(), accepted_by = p_user_id
    where id = inv.id;
+
+  -- La invitación hecha por create_tenant (sin invited_by) define al usuario principal del tenant.
+  if inv.invited_by is null then
+    update public.tenants set owner_id = p_user_id where id = inv.tenant_id and owner_id is null;
+  end if;
 end
 $$;
 
@@ -224,8 +355,14 @@ declare
   v_email text := lower(trim(p_admin_email));
   v_user uuid;
 begin
+  if not public.is_email_allowed(v_email) then
+    raise exception 'El dominio del email no está autorizado. Agregalo primero en allowed_email_domains.' using errcode = '22023';
+  end if;
+
   insert into public.tenants (name, slug) values (trim(p_name), lower(trim(p_slug)))
   returning id into v_tenant;
+
+  perform public.crear_tasas_por_defecto(v_tenant);
 
   insert into public.invitations (tenant_id, email, role) values (v_tenant, v_email, 'admin');
 
@@ -252,8 +389,12 @@ declare
   v_id uuid;
   v_user uuid;
 begin
-  if v_tenant is null or public.current_app_role() <> 'admin' then
-    raise exception 'Solo un administrador puede invitar usuarios' using errcode = '42501';
+  if v_tenant is null or not public.is_tenant_owner() then
+    raise exception 'Solo el superadministrador puede invitar usuarios' using errcode = '42501';
+  end if;
+
+  if not public.is_email_allowed(v_email) then
+    raise exception 'Ese email no pertenece a un dominio autorizado para tener cuenta' using errcode = '22023';
   end if;
 
   if exists (select 1 from public.profiles where lower(email) = v_email and tenant_id is not null) then
@@ -284,12 +425,16 @@ as $$
 declare
   v_tenant uuid := public.current_tenant_id();
 begin
-  if v_tenant is null or public.current_app_role() <> 'admin' then
-    raise exception 'Solo un administrador puede cambiar roles' using errcode = '42501';
+  if v_tenant is null or not public.is_tenant_owner() then
+    raise exception 'Solo el superadministrador puede cambiar roles' using errcode = '42501';
   end if;
 
   if not exists (select 1 from public.profiles where id = p_user_id and tenant_id = v_tenant) then
     raise exception 'El usuario no pertenece a este tenant' using errcode = '42501';
+  end if;
+
+  if p_user_id = (select owner_id from public.tenants where id = v_tenant) then
+    raise exception 'El usuario principal no se puede modificar desde la app' using errcode = '23514';
   end if;
 
   -- Siempre tiene que quedar al menos un administrador activo.
@@ -315,12 +460,16 @@ as $$
 declare
   v_tenant uuid := public.current_tenant_id();
 begin
-  if v_tenant is null or public.current_app_role() <> 'admin' then
-    raise exception 'Solo un administrador puede activar o desactivar usuarios' using errcode = '42501';
+  if v_tenant is null or not public.is_tenant_owner() then
+    raise exception 'Solo el superadministrador puede activar o desactivar usuarios' using errcode = '42501';
   end if;
 
   if not exists (select 1 from public.profiles where id = p_user_id and tenant_id = v_tenant) then
     raise exception 'El usuario no pertenece a este tenant' using errcode = '42501';
+  end if;
+
+  if p_user_id = (select owner_id from public.tenants where id = v_tenant) then
+    raise exception 'El usuario principal no se puede modificar desde la app' using errcode = '23514';
   end if;
 
   if not p_active and not exists (
@@ -337,7 +486,41 @@ $$;
 
 -- Permisos de ejecución: por defecto Supabase deja ejecutar todo a anon/authenticated.
 revoke execute on function public.claim_invitation(uuid, text) from public, anon, authenticated;
+-- Tasas iniciales de un tenant, las de los Excel de EzMel:
+--   clientes nuevos:   40 % a 1 semana y 120 % a 16 semanas (parejo)
+--   clientes antiguos: 30 % a 1 semana y 116 % a 20 semanas (parejo)
+-- No pisa lo que ya esté cargado.
+create or replace function public.crear_tasas_por_defecto(p_tenant uuid)
+returns void
+language sql
+security definer
+set search_path = ''
+as $$
+  insert into public.tasas (tenant_id, tipo_cliente, interes_1_semana, interes_adicional_semana, max_semanas)
+  values
+    (p_tenant, 'nuevo', 0.4, (1.2 - 0.4) / 15, 16),
+    (p_tenant, 'antiguo', 0.3, (1.16 - 0.3) / 19, 20)
+  on conflict (tenant_id, tipo_cliente) do nothing
+$$;
+
 revoke execute on function public.handle_auth_user() from public, anon, authenticated;
+revoke execute on function public.crear_tasas_por_defecto(uuid) from public, anon, authenticated;
+
+-- Tenants que ya existían: se les crean sus tasas.
+select public.crear_tasas_por_defecto(id) from public.tenants;
+revoke execute on function public.enforce_email_domain() from public, anon, authenticated;
+-- La app consulta si un email puede registrarse (devuelve sólo true/false) antes de crear la cuenta.
+revoke execute on function public.is_email_allowed(text) from public;
+grant execute on function public.is_email_allowed(text) to anon, authenticated;
+
+-- Tenants que ya existían antes de owner_id: el principal es quien aceptó la invitación de create_tenant.
+update public.tenants t
+   set owner_id = (
+     select i.accepted_by from public.invitations i
+     where i.tenant_id = t.id and i.invited_by is null and i.accepted_by is not null
+     order by i.accepted_at limit 1
+   )
+ where t.owner_id is null;
 revoke execute on function public.create_tenant(text, text, text) from public, anon, authenticated;
 
 revoke execute on function public.invite_member(text, public.app_role) from public, anon;
@@ -346,6 +529,9 @@ revoke execute on function public.set_member_active(uuid, boolean) from public, 
 grant execute on function public.invite_member(text, public.app_role) to authenticated;
 grant execute on function public.set_member_role(uuid, public.app_role) to authenticated;
 grant execute on function public.set_member_active(uuid, boolean) to authenticated;
+
+revoke execute on function public.is_tenant_owner() from public, anon;
+grant execute on function public.is_tenant_owner() to authenticated;
 
 revoke execute on function public.current_tenant_id() from public, anon;
 revoke execute on function public.current_app_role() from public, anon;
@@ -362,6 +548,7 @@ alter table public.invitations enable row level security;
 alter table public.legajos enable row level security;
 alter table public.legajo_files enable row level security;
 alter table public.contratos enable row level security;
+alter table public.tasas enable row level security;
 
 -- tenants: cada usuario ve únicamente el suyo. Se crean desde SQL (create_tenant).
 drop policy if exists tenants_select on public.tenants;
@@ -375,7 +562,10 @@ create policy tenants_select on public.tenants
 drop policy if exists profiles_select on public.profiles;
 create policy profiles_select on public.profiles
   for select to authenticated
-  using (id = (select auth.uid()) or tenant_id = (select public.current_tenant_id()));
+  using (
+    id = (select auth.uid())
+    or (tenant_id = (select public.current_tenant_id()) and (select public.is_tenant_owner()))
+  );
 
 drop policy if exists profiles_update_propio on public.profiles;
 create policy profiles_update_propio on public.profiles
@@ -390,14 +580,14 @@ grant update (full_name, avatar_url) on public.profiles to authenticated;
 drop policy if exists invitations_select on public.invitations;
 create policy invitations_select on public.invitations
   for select to authenticated
-  using (tenant_id = (select public.current_tenant_id()) and (select public.current_app_role()) = 'admin');
+  using (tenant_id = (select public.current_tenant_id()) and (select public.is_tenant_owner()));
 
 drop policy if exists invitations_delete on public.invitations;
 create policy invitations_delete on public.invitations
   for delete to authenticated
   using (
     tenant_id = (select public.current_tenant_id())
-    and (select public.current_app_role()) = 'admin'
+    and (select public.is_tenant_owner())
     and accepted_at is null
   );
 
@@ -468,9 +658,17 @@ create policy contratos_delete on public.contratos
   for delete to authenticated
   using (tenant_id = (select public.current_tenant_id()) and (select public.current_app_role()) = 'admin');
 
+-- tasas: los miembros del tenant las leen; no se modifican desde la API (sólo desde el SQL Editor, por ahora).
+drop policy if exists tasas_select on public.tasas;
+create policy tasas_select on public.tasas
+  for select to authenticated
+  using (tenant_id = (select public.current_tenant_id()));
+
+revoke insert, update, delete on public.tasas from anon, authenticated;
+
 -- Sin acceso anónimo a nada de lo anterior.
 revoke all on public.tenants, public.profiles, public.invitations,
-  public.legajos, public.legajo_files, public.contratos from anon;
+  public.legajos, public.legajo_files, public.contratos, public.tasas from anon;
 -- Los datos de negocio no se editan: solo se crean, se leen y (admin) se borran.
 revoke update on public.legajos, public.legajo_files, public.contratos from anon, authenticated;
 revoke insert, update, delete on public.tenants from anon, authenticated;
@@ -517,3 +715,6 @@ create policy legajo_files_storage_delete on storage.objects
     and (storage.foldername(name))[1] = (select public.current_tenant_id())::text
     and (select public.current_app_role()) = 'admin'
   );
+
+-- Avisa a la API de Supabase que recargue su caché de tablas y funciones (así las tablas nuevas se ven al instante).
+notify pgrst, 'reload schema';

@@ -29,7 +29,9 @@ export const legajoDatosSchema = z.object({
   email: z.string().email("Email inválido"),
   direccion: z.string(),
   codigoPostal: z.string(),
-  referencias: z.string(),
+  referencia1: z.string(),
+  referencia2: z.string(),
+  referenciaLaboral: z.string(),
 
   montoPrestamo: z.coerce.number().min(0),
 
@@ -67,7 +69,9 @@ export const STEP1_FIELDS = [
   "email",
   "direccion",
   "codigoPostal",
-  "referencias",
+  "referencia1",
+  "referencia2",
+  "referenciaLaboral",
   "montoPrestamo",
   "servicios",
   "observacionesGenerales",

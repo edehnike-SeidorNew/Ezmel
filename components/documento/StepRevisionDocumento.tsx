@@ -1,16 +1,27 @@
 "use client";
 
 import { useState } from "react";
-import { RefinanciacionPreview } from "./RefinanciacionPreview";
-import type { RefinanciacionSchema } from "@/lib/validation/refinanciacionSchema";
+import type { DocumentoContenido } from "@/lib/documento/tipos";
 import type { ExportFormat } from "@/lib/types/legajo";
+import { DocumentoPreview } from "./DocumentoPreview";
 
 const FORMAT_OPTIONS: { id: ExportFormat; label: string }[] = [
   { id: "pdf", label: "PDF (.pdf)" },
   { id: "docx", label: "Word (.docx)" },
 ];
 
-export function StepRevisionRefinanciacion({ datos }: { datos: RefinanciacionSchema }) {
+/** Vista previa del documento y descarga en PDF y/o Word. `endpoint` recibe `{ datos, formats }` y devuelve el archivo. */
+export function StepRevisionDocumento({
+  contenido,
+  endpoint,
+  datos,
+  archivoPorDefecto,
+}: {
+  contenido: DocumentoContenido;
+  endpoint: string;
+  datos: unknown;
+  archivoPorDefecto: string;
+}) {
   const [formats, setFormats] = useState<ExportFormat[]>(["pdf"]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -28,7 +39,7 @@ export function StepRevisionRefinanciacion({ datos }: { datos: RefinanciacionSch
     setError(null);
     setLoading(true);
     try {
-      const res = await fetch("/api/refinanciacion/export", {
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ datos, formats }),
@@ -40,7 +51,7 @@ export function StepRevisionRefinanciacion({ datos }: { datos: RefinanciacionSch
 
       const disposition = res.headers.get("Content-Disposition") ?? "";
       const match = /filename="?([^"]+)"?/.exec(disposition);
-      const filename = match?.[1] ?? "refinanciacion";
+      const filename = match?.[1] ?? archivoPorDefecto;
 
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
@@ -62,7 +73,7 @@ export function StepRevisionRefinanciacion({ datos }: { datos: RefinanciacionSch
   return (
     <div className="space-y-6">
       <div className="max-h-[42rem] overflow-y-auto rounded-lg bg-slate-100 p-4">
-        <RefinanciacionPreview datos={datos} />
+        <DocumentoPreview c={contenido} />
       </div>
 
       <div className="rounded-lg border border-slate-200 bg-white p-5">
@@ -82,17 +93,15 @@ export function StepRevisionRefinanciacion({ datos }: { datos: RefinanciacionSch
         </div>
 
         {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
-        {descargado && !error && (
-          <p className="mt-3 text-sm text-emerald-600">Guardado y descargado: {descargado}</p>
-        )}
+        {descargado && !error && <p className="mt-3 text-sm text-emerald-600">Descargado: {descargado}</p>}
 
         <button
           type="button"
           onClick={handleDownload}
           disabled={loading}
-          className="mt-4 rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60"
+          className="mt-4 min-h-11 rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60"
         >
-          {loading ? "Generando..." : "Guardar y descargar"}
+          {loading ? "Generando..." : "Descargar"}
         </button>
       </div>
     </div>

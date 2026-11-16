@@ -17,6 +17,7 @@ export function PanelOpciones<Id extends string>({
   onSelect,
   ancho,
   fija,
+  desplazamiento,
   children,
 }: {
   titulo: string;
@@ -25,10 +26,11 @@ export function PanelOpciones<Id extends string>({
   onSelect: (id: Id) => void;
   ancho?: string;
   fija?: boolean;
+  desplazamiento?: string;
   children?: ReactNode;
 }) {
   return (
-    <ColumnaLateral ancho={ancho} fija={fija}>
+    <ColumnaLateral ancho={ancho} fija={fija} desplazamiento={desplazamiento}>
       <CardLateral titulo={titulo}>
         <div className="flex flex-col gap-1 sm:flex-row sm:flex-wrap xl:flex-col">
           {opciones.map(({ id, label, Icon }) => {

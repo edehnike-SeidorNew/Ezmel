@@ -1,7 +1,8 @@
 import { MUTUANTE_INFO } from "@/lib/data/contratoFijo";
 import { fechaPartes, formatFechaCorta, formatFechaLarga } from "@/lib/format/dateEs";
-import { montoEnLetras, numeroALetras } from "@/lib/format/numberToWords";
+import { montoEnLetrasPesos, numeroALetras } from "@/lib/format/numberToWords";
 import { formatDni, formatDomicilio } from "@/lib/format/personal";
+import { calcularPlanDePagos } from "@/lib/contrato/planDePagos";
 import type { ContratoDatos } from "@/lib/types/contrato";
 
 /** Un tramo de texto; `bold` marca los datos completados (a diferencia del texto fijo del contrato). */
@@ -15,10 +16,26 @@ export interface Clausula {
   texto: TextSegment[];
 }
 
-export interface FirmaLinea {
+/** Bloque de firma: línea arriba, el rol en negrita y debajo los datos de quien firma (todo centrado). */
+export interface FirmaBloque {
   rol: string;
-  nombre: string;
-  documento: string;
+  lineas: TextSegment[][];
+}
+
+/** ANEXO I – Plan de pagos: parte integrante del contrato, con el detalle de cada cuota. */
+export interface AnexoContenido {
+  titulo: string;
+  subtitulo: TextSegment[];
+  /** Datos del préstamo (etiqueta / valor), en el orden en que se muestran. */
+  resumen: { etiqueta: string; valor: TextSegment[] }[];
+  /** Costo financiero total: va destacado, debajo de los datos y antes de la tabla. */
+  cftea: { etiqueta: string; valor: string };
+  columnas: string[];
+  /** Una fila por cuota, ya formateada. Vacío si faltan datos para calcular el plan. */
+  filas: string[][];
+  /** Última fila de la tabla (alineada con las columnas). */
+  totales: string[];
+  firmas: FirmaBloque[];
 }
 
 export interface ContratoContenido {
@@ -27,7 +44,8 @@ export interface ContratoContenido {
   intro: TextSegment[];
   clausulas: Clausula[];
   cierre: TextSegment[];
-  firmas: FirmaLinea[];
+  firmas: FirmaBloque[];
+  anexo: AnexoContenido;
   pagare: {
     titulo: string;
     subtitulo: string;
@@ -49,13 +67,8 @@ const PUNITORIO_MENSUAL = 45;
 
 const numberFormat = new Intl.NumberFormat("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-const numberFormatEntero = new Intl.NumberFormat("es-AR", { maximumFractionDigits: 0 });
-
-/** "$ 200.000" si es entero, "$ 144.000,50" si tiene centavos. */
-const money = (n: number) => {
-  const centavos = Math.round((n || 0) * 100);
-  return `$ ${(centavos % 100 === 0 ? numberFormatEntero : numberFormat).format(centavos / 100)}`;
-};
+/** "$ 132.445,00": los montos del contrato y del anexo se muestran siempre con centavos, como en el original. */
+const moneyCentavos = (n: number) => `$ ${numberFormat.format(n || 0)}`;
 
 /** "437,19 %" */
 const pct = (n: number) => `${numberFormat.format(n)} %`;
@@ -80,6 +93,8 @@ const PERIODICIDAD: Record<ContratoDatos["periodicidadPago"], { plural: string; 
 
 /** Líneas para completar a mano en las firmas (Nombre completo / DNI), igual que la línea de la firma. */
 export const LINEA_NOMBRE = "_".repeat(32);
+/** Línea para completar a mano los datos del garante (si hubiere). */
+const LINEA_GARANTE = "_".repeat(16);
 export const LINEA_DNI = "_".repeat(20);
 
 /** Texto fijo del contrato. */
@@ -104,10 +119,32 @@ export function buildContratoContenido(datos: ContratoDatos): ContratoContenido 
   const periodicidad = PERIODICIDAD[datos.periodicidadPago];
   const cuotas = datos.cantidadCuotas;
   const tasaDiaria = `${(PUNITORIO_MENSUAL / 30).toFixed(4).replace(".", ",")}%`;
-  const prestadoLetras = `${money(datos.montoPrestado)} (${montoEnLetras(datos.montoPrestado)})`;
-  const totalLetras = `${money(datos.montoADevolver)} (${montoEnLetras(datos.montoADevolver)})`;
+  const prestadoLetras = `${montoEnLetrasPesos(datos.montoPrestado)} (${moneyCentavos(datos.montoPrestado)})`;
+  const totalLetras = `${montoEnLetrasPesos(datos.montoADevolver)} (${moneyCentavos(datos.montoADevolver)})`;
   const cbuAlias = [datos.mutuarioCbu, datos.mutuarioAlias].filter(Boolean).join(" / ");
   const contacto = [b(MUTUANTE_INFO.email), t(" o teléfono "), b(MUTUANTE_INFO.telefono)];
+  const plan = calcularPlanDePagos(datos);
+
+  // Bloques de firma (contrato y anexo): como en el original aprobado.
+  const firmaMutuante: FirmaBloque = {
+    rol: "EL MUTUANTE",
+    lineas: [
+      [t(MUTUANTE_INFO.razonSocial)],
+      [t(`${MUTUANTE_INFO.administradorNombreFirma} – Administrador`)],
+      [t(`DNI ${MUTUANTE_INFO.administradorDni}`)],
+    ],
+  };
+  const firmaMutuario: FirmaBloque = {
+    rol: "EL MUTUARIO",
+    lineas: [[t("Nombre y apellido: "), b(datos.mutuarioNombre)], [t("DNI: "), b(dni)]],
+  };
+  const firmaGarante: FirmaBloque = {
+    rol: "GARANTE (si hubiere)",
+    lineas: [
+      [t("Nombre y apellido: "), datos.garanteNombre ? b(datos.garanteNombre) : t(LINEA_GARANTE)],
+      [t("DNI: "), datos.garanteDni ? b(datos.garanteDni) : t(LINEA_GARANTE)],
+    ],
+  };
 
   return {
     titulo: "CONTRATO DE MUTUO",
@@ -170,7 +207,7 @@ export function buildContratoContenido(datos: ContratoDatos): ContratoContenido 
           t(cuotas === 1 ? " cuota " : " cuotas "),
           b(cuotas === 1 ? periodicidad.singular : periodicidad.plural),
           t(" de "),
-          b(`${money(datos.importeCuota)} (${montoEnLetras(datos.importeCuota)})`),
+          b(`${montoEnLetrasPesos(datos.importeCuota)} (${moneyCentavos(datos.importeCuota)})`),
           t(" cada una. La primera cuota vencerá el día "),
           b(formatFechaLarga(datos.fechaPrimeraCuota)),
           t(
@@ -201,17 +238,17 @@ export function buildContratoContenido(datos: ContratoDatos): ContratoContenido 
             ". El préstamo se amortiza por el sistema francés, con cuota total fija que incluye el IVA sobre " +
               "intereses (21%). En cumplimiento del artículo 36 de la Ley 24.240 se informa: importe neto a desembolsar "
           ),
-          b(money(datos.montoPrestado)),
+          b(moneyCentavos(datos.montoPrestado)),
           t("; total de intereses compensatorios "),
-          b(money(intereses)),
+          b(moneyCentavos(intereses)),
           t("; IVA sobre intereses "),
-          b(money(iva)),
+          b(moneyCentavos(iva)),
           t("; total a pagar "),
-          b(money(datos.montoADevolver)),
+          b(moneyCentavos(datos.montoADevolver)),
           t("; "),
           b(String(cuotas)),
           t(cuotas === 1 ? " cuota de " : " cuotas de "),
-          b(money(datos.importeCuota)),
+          b(moneyCentavos(datos.importeCuota)),
           t(". No existen otros cargos, comisiones ni gastos distintos de los aquí informados."),
           fill(),
           t("\nCOSTO FINANCIERO TOTAL EFECTIVO ANUAL (CFTEA) CON IVA:\n"),
@@ -456,31 +493,66 @@ export function buildContratoContenido(datos: ContratoDatos): ContratoContenido 
       t("."),
       fill(),
     ],
-    firmas: [
-      {
-        rol: "Firma del MUTUANTE (Administrador)",
-        nombre: MUTUANTE_INFO.administradorNombre,
-        documento: MUTUANTE_INFO.administradorDni,
-      },
-      { rol: "Firma del MUTUARIO", nombre: "", documento: "" },
-      {
-        rol: "Firma del GARANTE (si hubiere)",
-        nombre: datos.garanteNombre,
-        documento: datos.garanteDni,
-      },
-    ],
+    firmas: [firmaMutuante, firmaMutuario, firmaGarante],
+    anexo: {
+      titulo: "ANEXO I – Plan de pagos",
+      subtitulo: [t("Contrato de Mutuo N° "), b(numero), t(" del "), b(formatFechaCorta(datos.fechaContrato))],
+      resumen: [
+        { etiqueta: "Mutuario", valor: [b(datos.mutuarioNombre)] },
+        { etiqueta: "DNI", valor: [b(dni)] },
+        { etiqueta: "Capital mutuado", valor: [b(moneyCentavos(datos.montoPrestado))] },
+        { etiqueta: "Importe neto a acreditar", valor: [b(moneyCentavos(datos.montoPrestado))] },
+        { etiqueta: "Cuotas", valor: [b(`${cuotas} de ${moneyCentavos(datos.importeCuota)}`)] },
+        { etiqueta: "Total a devolver", valor: [b(moneyCentavos(datos.montoADevolver))] },
+        { etiqueta: "TNA", valor: [b(pct(datos.tna)), t(" · TEM: "), b(pct(datos.tem))] },
+        { etiqueta: "TEA", valor: [b(pct(datos.tea))] },
+        { etiqueta: "Sistema de amortización", valor: [t("francés, tasa fija")] },
+        { etiqueta: "Punitorio", valor: [t(`${PUNITORIO_MENSUAL}% mensual sobre capital`)] },
+      ],
+      cftea: { etiqueta: "CFTEA con IVA", valor: pct(datos.cftea) },
+      columnas: ["N°", "Vence", "Saldo inicial", "Amortización", "Interés", "IVA", "Cuota", "Saldo final"],
+      filas: (plan?.filas ?? []).map((f) => [
+        String(f.numero),
+        formatFechaCorta(f.vence),
+        moneyCentavos(f.saldoInicial),
+        moneyCentavos(f.amortizacion),
+        moneyCentavos(f.interes),
+        moneyCentavos(f.iva),
+        moneyCentavos(f.cuota),
+        moneyCentavos(f.saldoFinal),
+      ]),
+      totales: plan
+        ? [
+            "",
+            "Totales",
+            "—",
+            moneyCentavos(plan.totales.amortizacion),
+            moneyCentavos(plan.totales.interes),
+            moneyCentavos(plan.totales.iva),
+            moneyCentavos(plan.totales.cuota),
+            "—",
+          ]
+        : [],
+      firmas: [firmaMutuante, firmaMutuario],
+    },
     pagare: {
       titulo: "PAGARÉ SIN PROTESTO",
       subtitulo: "Decreto-Ley 5965/63",
       encabezado: [t("Nro: "), b(numero), t("      Vencimiento: "), b(formatFechaCorta(datos.fechaVencimientoPagare))],
-      por: [t("Por Pesos: "), b(money(datos.montoADevolver)), t(" (En letras: "), b(montoEnLetras(datos.montoADevolver)), t(")")],
+      por: [
+        t("Por Pesos: "),
+        b(moneyCentavos(datos.montoADevolver)),
+        t(" (En letras: "),
+        b(montoEnLetrasPesos(datos.montoADevolver)),
+        t(")"),
+      ],
       cuerpo: [
         t("Pagaré/mos sin protesto (art. 50 Decreto-Ley 5965/63) a la orden de "),
         b(MUTUANTE_INFO.razonSocial),
         t(", CUIT "),
         b(MUTUANTE_INFO.cuit),
         t(", la suma libre de gastos de "),
-        b(montoEnLetras(datos.montoADevolver)),
+        b(montoEnLetrasPesos(datos.montoADevolver)),
         t(" el día "),
         b(formatFechaLarga(datos.fechaVencimientoPagare)),
         t(", pagadero en el domicilio del beneficiario en "),
@@ -505,9 +577,9 @@ export function buildContratoContenido(datos: ContratoDatos): ContratoContenido 
         t("."),
       ],
       firmanteLabel: "Firma del Librador (Mutuario):",
-      nombre: "",
-      documento: "",
-      domicilio: "",
+      nombre: datos.mutuarioNombre,
+      documento: dni,
+      domicilio,
     },
   };
 }

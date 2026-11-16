@@ -10,7 +10,7 @@ export interface PngPage {
 
 let pdfjsPromise: Promise<typeof import("pdfjs-dist")> | null = null;
 
-function loadPdfjs() {
+export function loadPdfjs() {
   pdfjsPromise ??= import("pdfjs-dist").then((mod) => {
     // El worker se crea acá a mano y con `type: "module"`. Si en cambio se usa
     // `workerSrc`, pdfjs lo instancia como script clásico, el archivo ESM no

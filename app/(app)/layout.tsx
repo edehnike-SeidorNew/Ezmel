@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { can, ROLE_LABEL } from "@/lib/auth/roles";
+import { can, ROLE_LABEL, SUPERADMIN_LABEL } from "@/lib/auth/roles";
 import { getServerSession, hasAccess } from "@/lib/auth/session";
 import { AppShell } from "@/components/layout/AppShell";
 
@@ -18,10 +18,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     <AppShell
       email={session.email}
       userName={session.name}
-      roleLabel={ROLE_LABEL[session.role]}
+      roleLabel={session.superAdmin ? SUPERADMIN_LABEL : ROLE_LABEL[session.role]}
       tenantName={session.tenant.name}
       readOnly={!can(session.role, "documentos:crear")}
-      canManageUsers={can(session.role, "usuarios:gestionar")}
+      canManageUsers={can(session.role, "usuarios:gestionar", session.superAdmin)}
+      canViewRates={can(session.role, "tasas:ver")}
     >
       {children}
     </AppShell>

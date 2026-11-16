@@ -4,6 +4,8 @@ import { isMockMode } from "@/lib/supabase/env";
 import { createClient } from "@/lib/supabase/server";
 import { getSiteUrl } from "@/lib/supabase/site-url";
 
+const DOMINIO_NO_PERMITIDO = "Solo se pueden registrar cuentas con el email de la empresa.";
+
 const signupSchema = z.object({
   email: z.string().trim().toLowerCase().email(),
   password: z.string().min(8).max(72),
@@ -27,6 +29,14 @@ export async function POST(request: Request) {
   }
 
   const supabase = await createClient();
+
+  // Sólo se registran emails de la empresa. La base lo exige igual (trigger sobre auth.users);
+  // acá se consulta antes para dar un mensaje claro en vez de un error genérico.
+  const { data: permitido } = await supabase.rpc("is_email_allowed", { p_email: parsed.data.email });
+  if (permitido === false) {
+    return NextResponse.json({ error: DOMINIO_NO_PERMITIDO }, { status: 400 });
+  }
+
   const { data, error } = await supabase.auth.signUp({
     email: parsed.data.email,
     password: parsed.data.password,
@@ -42,6 +52,10 @@ export async function POST(request: Request) {
     }
     if (error.code === "over_email_send_rate_limit" || error.status === 429) {
       return NextResponse.json({ error: "Demasiados intentos. Probá de nuevo en unos minutos." }, { status: 429 });
+    }
+    // El trigger de la base rechaza dominios no autorizados con este mensaje genérico de Supabase Auth.
+    if (/database error saving new user/i.test(error.message)) {
+      return NextResponse.json({ error: DOMINIO_NO_PERMITIDO }, { status: 400 });
     }
     return NextResponse.json({ error: "No se pudo crear la cuenta." }, { status: 400 });
   }

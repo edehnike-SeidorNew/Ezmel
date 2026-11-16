@@ -86,9 +86,17 @@ export function StepDatosPersonales() {
           <Field label="Código postal">
             <input className={inputClass} {...register("codigoPostal")} />
           </Field>
-          <Field label="Referencias">
-            <input className={inputClass} {...register("referencias")} />
+          <Field label="Referencia 1">
+            <input className={inputClass} placeholder="Nombre, teléfono y DNI" {...register("referencia1")} />
           </Field>
+          <Field label="Referencia 2">
+            <input className={inputClass} placeholder="Nombre, teléfono y DNI" {...register("referencia2")} />
+          </Field>
+          <div className="sm:col-span-2">
+            <Field label="Referencia laboral (solo monotributistas)">
+              <input className={inputClass} placeholder="Nombre, teléfono y actividad o vínculo laboral" {...register("referenciaLaboral")} />
+            </Field>
+          </div>
         </div>
       </Section>
 

@@ -39,7 +39,7 @@ export function LogoutButton({ variant = "icon" }: { variant?: "icon" | "text" }
       disabled={loading}
       aria-label="Cerrar sesión"
       title="Cerrar sesión"
-      className="rounded-xl p-2 text-white/80 hover:bg-white/15 hover:text-white disabled:opacity-60"
+      className="rounded-xl p-1.5 text-white/80 hover:bg-white/15 hover:text-white disabled:opacity-60"
     >
       <LogoutIcon />
     </button>

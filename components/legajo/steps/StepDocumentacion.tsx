@@ -1,9 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import { useFormContext } from "react-hook-form";
+import { ZoomInIcon } from "@/components/layout/icons";
 import { ACCEPTED_FILE_ACCEPT, FILE_CATEGORIES, isImageFile } from "@/lib/types/legajo";
 import type { LegajoFileCategoryKey, LegajoFormValues } from "@/lib/types/legajo";
 import { useObjectUrl } from "@/lib/hooks/useObjectUrl";
+import { VisorAdjuntos } from "../VisorAdjuntos";
 
 const inputClass =
   "mt-1 w-full rounded-md border border-brand-border px-3 py-2 text-sm text-slate-900 focus:border-brand focus:outline-none";
@@ -24,21 +27,32 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-/** Miniatura de un adjunto; crea y libera su object URL con el ciclo de vida del archivo. */
-function FileThumb({ file, onRemove }: { file: File; onRemove: () => void }) {
+/** Miniatura de un adjunto; crea y libera su object URL con el ciclo de vida del archivo. Al tocarla se amplía. */
+function FileThumb({ file, onOpen, onRemove }: { file: File; onOpen: () => void; onRemove: () => void }) {
   const isImage = isImageFile(file);
   const url = useObjectUrl(file, isImage);
 
   return (
     <li className="flex w-40 flex-col overflow-hidden rounded-md border border-brand-border">
-      {isImage && url ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={url} alt={file.name} className="h-24 w-full object-cover" />
-      ) : (
-        <div className="flex h-24 w-full items-center justify-center bg-brand-soft text-xs font-bold text-brand">
-          {isImage ? "…" : "PDF"}
-        </div>
-      )}
+      <button
+        type="button"
+        onClick={onOpen}
+        aria-label={`Ampliar ${file.name}`}
+        title="Ampliar para verificar"
+        className="group relative block cursor-zoom-in"
+      >
+        {isImage && url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={url} alt={file.name} className="h-24 w-full object-cover" />
+        ) : (
+          <div className="flex h-24 w-full items-center justify-center bg-brand-soft text-xs font-bold text-brand">
+            {isImage ? "…" : "PDF"}
+          </div>
+        )}
+        <span className="absolute right-1.5 top-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-black/55 text-white opacity-90 transition-opacity group-hover:opacity-100">
+          <ZoomInIcon className="h-4 w-4" />
+        </span>
+      </button>
       <div className="flex items-center justify-between gap-1 px-2 py-1">
         <span className="truncate text-xs text-slate-700" title={file.name}>
           {file.name}
@@ -57,6 +71,8 @@ function FileThumb({ file, onRemove }: { file: File; onRemove: () => void }) {
 
 export function StepDocumentacion({ files, setFiles }: Props) {
   const { register } = useFormContext<LegajoFormValues>();
+  // Adjunto abierto en el visor: de qué categoría y cuál.
+  const [visor, setVisor] = useState<{ key: LegajoFileCategoryKey; indice: number } | null>(null);
 
   function addFiles(key: LegajoFileCategoryKey, fileList: FileList | null) {
     if (!fileList || fileList.length === 0) return;
@@ -103,6 +119,7 @@ export function StepDocumentacion({ files, setFiles }: Props) {
                   <FileThumb
                     key={`${file.name}-${file.lastModified}-${i}`}
                     file={file}
+                    onOpen={() => setVisor({ key: category.key, indice: i })}
                     onRemove={() => removeFile(category.key, i)}
                   />
                 ))}
@@ -119,6 +136,14 @@ export function StepDocumentacion({ files, setFiles }: Props) {
         );
       })}
 
+      {visor && (files[visor.key]?.length ?? 0) > 0 && (
+        <VisorAdjuntos
+          files={files[visor.key] ?? []}
+          indice={Math.min(visor.indice, (files[visor.key]?.length ?? 1) - 1)}
+          onCambiar={(indice) => setVisor({ key: visor.key, indice })}
+          onCerrar={() => setVisor(null)}
+        />
+      )}
     </div>
   );
 }
