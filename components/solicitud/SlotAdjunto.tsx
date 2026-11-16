@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { FotoNoLegibleError, toEmbeddableImage } from "@/lib/export/prepareUpload";
 import { useObjectUrl } from "@/lib/hooks/useObjectUrl";
 import { MAX_BYTES_ARCHIVO, type SlotAdjunto as Slot } from "@/lib/solicitud/adjuntos";
 import { ACCEPTED_FILE_ACCEPT, isImageFile, isPdfFile } from "@/lib/types/legajo";
@@ -50,11 +51,12 @@ export function SlotAdjunto({
   const camara = useRef<HTMLInputElement>(null);
   const galeria = useRef<HTMLInputElement>(null);
   const [aviso, setAviso] = useState<string | null>(null);
+  const [procesando, setProcesando] = useState(false);
 
   const completo = archivos.length >= slot.min;
   const lleno = archivos.length >= slot.max;
 
-  function agregar(lista: FileList | null) {
+  async function agregar(lista: FileList | null) {
     if (!lista || lista.length === 0) return;
     // Se copia acá: el input se vacía enseguida y la FileList queda vacía.
     const nuevos = Array.from(lista);
@@ -67,6 +69,19 @@ export function SlotAdjunto({
         aviso = slot.soloImagen ? "Para este documento hace falta una foto." : "Solo se aceptan fotos o PDF.";
       } else if (file.size > MAX_BYTES_ARCHIVO) {
         aviso = "Un archivo pesa demasiado (máximo 30 MB). Probá con otra foto.";
+      } else if (isImageFile(file)) {
+        // La foto se achica y se pasa a JPEG apenas se elige: así se detecta enseguida si no se puede leer
+        // (en vez de enterarse recién al armar el PDF) y no se guardan en memoria fotos de varios megapíxeles.
+        setProcesando(true);
+        try {
+          const { blob } = await toEmbeddableImage(file);
+          const nombre = file.name.replace(/\.[^./\\]+$/, "") || "foto";
+          validos.push(new File([blob], `${nombre}.jpg`, { type: "image/jpeg", lastModified: file.lastModified }));
+        } catch (error) {
+          aviso = error instanceof FotoNoLegibleError ? error.message : "No pudimos procesar esta foto. Sacala de nuevo o elegí otra.";
+        } finally {
+          setProcesando(false);
+        }
       } else {
         validos.push(file);
       }
@@ -132,19 +147,19 @@ export function SlotAdjunto({
         <button
           type="button"
           onClick={() => camara.current?.click()}
-          disabled={lleno && slot.max > 1}
+          disabled={(lleno && slot.max > 1) || procesando}
           className={`${botonClass} bg-brand text-white hover:bg-brand-hover disabled:opacity-50`}
         >
           <svg aria-hidden viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
             <path d="M4 8h3l2-2.5h6L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z" />
             <circle cx="12" cy="13" r="3.5" />
           </svg>
-          {archivos.length > 0 && slot.max === 1 ? "Repetir foto" : "Sacar foto"}
+          {procesando ? "Procesando…" : archivos.length > 0 && slot.max === 1 ? "Repetir foto" : "Sacar foto"}
         </button>
         <button
           type="button"
           onClick={() => galeria.current?.click()}
-          disabled={lleno && slot.max > 1}
+          disabled={(lleno && slot.max > 1) || procesando}
           className={`${botonClass} border border-brand-border bg-white text-brand hover:bg-brand-soft disabled:opacity-50`}
         >
           <svg aria-hidden viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">

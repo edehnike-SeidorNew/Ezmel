@@ -18,7 +18,7 @@
 select public.create_tenant(
   p_name        => 'EzMel',
   p_slug        => 'ezmel',
-  p_admin_email => 'admin@ezmel.net'
+  p_admin_email => 'presidencia@ezmel.net'
 );
 
 -- Para crear otro tenant (otra empresa) se repite la llamada con otros valores:

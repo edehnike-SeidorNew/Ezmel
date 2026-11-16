@@ -5,6 +5,7 @@ import { useForm, useWatch, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { cotizar } from "@/lib/cotizador/calcular";
 import { MODALIDADES } from "@/lib/cotizador/config";
+import { FotoNoLegibleError } from "@/lib/export/prepareUpload";
 import { formatDni } from "@/lib/format/personal";
 import { SUBTIPOS, faltantes, slotsPara } from "@/lib/solicitud/adjuntos";
 import {
@@ -160,7 +161,11 @@ export function SolicitudForm({
       document.getElementById("solicitud")?.scrollIntoView({ behavior: "smooth", block: "start" });
     } catch (e) {
       console.error(e);
-      setError("No pudimos armar el PDF. Revisá que las fotos se vean bien y probá de nuevo.");
+      setError(
+        e instanceof FotoNoLegibleError
+          ? `${e.message} (${e.nombreArchivo})`
+          : `No pudimos armar el PDF${e instanceof Error && e.message ? ` (${e.message})` : ""}. Probá de nuevo; si sigue fallando, cerrá otras aplicaciones del celular o sacá las fotos otra vez.`
+      );
     } finally {
       setGenerando(null);
     }
