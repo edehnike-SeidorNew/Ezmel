@@ -346,7 +346,8 @@ export function buildRefinanciacionContenido(d: RefinanciacionDatos): DocumentoC
         },
         {
           rol: "EL DEUDOR",
-          lineas: [[t("Aclaración: "), b(nombreDeudor)], [t("DNI/CUIT: "), b(documento(d.deudorDocumento))]],
+          // En la firma del cliente no va su nombre ni su documento: queda la línea para completar a mano.
+          lineas: [[t("Aclaración: " + "_".repeat(28))], [t("DNI/CUIT: " + "_".repeat(20))]],
         },
         ...(d.conGarante
           ? [

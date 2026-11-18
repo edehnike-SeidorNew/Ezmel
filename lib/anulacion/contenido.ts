@@ -133,7 +133,8 @@ export function buildAnulacionContenido(d: AnulacionDatos): DocumentoContenido {
         },
         {
           rol: "Firma del MUTUARIO",
-          lineas: [[t("Nombre completo: "), b(nombre)], [t("DNI: "), b(dni)]],
+          // Los datos del cliente en la firma los completa él a mano.
+          lineas: [[t("Nombre completo: " + "_".repeat(32))], [t("DNI: " + "_".repeat(20))]],
         },
       ],
     },

@@ -136,7 +136,8 @@ export function buildContratoContenido(datos: ContratoDatos): ContratoContenido 
   };
   const firmaMutuario: FirmaBloque = {
     rol: "EL MUTUARIO",
-    lineas: [[t("Nombre y apellido: "), b(datos.mutuarioNombre)], [t("DNI: "), b(dni)]],
+    // Los datos del cliente en la firma los completa él a mano: quedan las líneas en blanco.
+    lineas: [[t("Nombre y apellido: " + LINEA_NOMBRE)], [t("DNI: " + LINEA_DNI)]],
   };
   const firmaGarante: FirmaBloque = {
     rol: "GARANTE (si hubiere)",
@@ -577,9 +578,10 @@ export function buildContratoContenido(datos: ContratoDatos): ContratoContenido 
         t("."),
       ],
       firmanteLabel: "Firma del Librador (Mutuario):",
-      nombre: datos.mutuarioNombre,
-      documento: dni,
-      domicilio,
+      // Vacíos a propósito: el firmante completa nombre, DNI y domicilio a mano (los renderers dibujan las líneas).
+      nombre: "",
+      documento: "",
+      domicilio: "",
     },
   };
 }
