@@ -98,10 +98,10 @@ export function ResultadoSolicitud({ archivo, onEditar }: { archivo: File; onEdi
           href={`https://wa.me/${WHATSAPP}?text=${encodeURIComponent(MENSAJE)}`}
           target="_blank"
           rel="noopener noreferrer"
-          className={`flex items-center justify-center gap-2 rounded-xl px-5 py-3.5 text-base font-semibold ${
+          className={`items-center justify-center gap-2 rounded-xl px-5 py-3.5 text-base font-semibold ${
             puedeCompartir
-              ? "border border-brand-border bg-white text-brand hover:bg-brand-soft"
-              : "bg-brand text-white shadow-md hover:bg-brand-hover"
+              ? "hidden border border-brand-border bg-white text-brand hover:bg-brand-soft sm:flex"
+              : "flex bg-brand text-white shadow-md hover:bg-brand-hover"
           }`}
         >
           <IconoWhatsApp />
@@ -126,7 +126,13 @@ export function ResultadoSolicitud({ archivo, onEditar }: { archivo: File; onEdi
         {puedeCompartir ? (
           <>
             <li>Tocá “Enviar por WhatsApp” y elegí el chat de EzMel ({MUTUANTE_INFO.telefono}).</li>
-            <li>O abrí el chat con el segundo botón y adjuntá el PDF con el clip (Documento).</li>
+            <li className="hidden sm:list-item">
+              O abrí el chat con el segundo botón y adjuntá el PDF con el clip (Documento).
+            </li>
+            <li className="sm:hidden">
+              Si el PDF no se precargó en el chat, descargalo antes con el botón de abajo y adjuntalo en el chat de EzMel
+              con el clip (Documento).
+            </li>
           </>
         ) : (
           <>

@@ -30,7 +30,7 @@ export function DatosEzmel() {
               {MUTUANTE_INFO.razonSocial} · CUIT {MUTUANTE_INFO.cuit}
             </span>
           </Linea>
-          <Linea label="Domicilio">{MUTUANTE_INFO.domicilio}</Linea>
+          <Linea label="Domicilio">Zufriategui 834, local 9, Ituzaingó - Provincia de Buenos Aires</Linea>
         </dl>
 
       </div>

@@ -23,7 +23,7 @@ export default async function SolicitarPage({
   return (
     <div className="min-h-screen bg-slate-50">
       <Navbar />
-      <main className="mx-auto max-w-[960px] space-y-12 px-4 py-8">
+      <main className="mx-auto max-w-[960px] space-y-7 px-4 py-8">
         <DatosEzmel />
         <SolicitudApp tipoInicial={tipo} prestamoInicial={prestamo ?? PRESTAMO_INICIAL} />
       </main>
